@@ -236,9 +236,9 @@ struct SettingsView: View {
     }
 
     // Uniform width for standard right-side controls.
-    private let controlWidth: CGFloat = 220
-    // Wider controls keep model/provider selections visually consistent in Settings.
-    private let meetingControlWidth: CGFloat = 275
+    private let controlWidth: CGFloat = 275
+    // Model/provider rows use the same default as every other settings control.
+    private var meetingControlWidth: CGFloat { controlWidth }
     private let meetingDetectionAppOptions: [MeetingDetectionAppOption] = [
         MeetingDetectionAppOption(bundleID: "com.google.Chrome", name: "Chrome", icon: "globe"),
         MeetingDetectionAppOption(bundleID: "company.thebrowser.Browser", name: "Arc", icon: "globe"),
@@ -1568,12 +1568,14 @@ struct SettingsView: View {
     private func bodhanOutputMenu(model: String) -> some View {
         if BodhanModel(rawValue: model)?.isCore == false {
             settingsRow("Bodhan output", controlWidth: meetingControlWidth) {
-                Picker("Output script", selection: Binding(
-                    get: { appState.config.resolvedBodhanOutputMode },
-                    set: { controller.selectBodhanOutputMode($0) }
-                )) {
-                    ForEach(BodhanOutputMode.allCases, id: \.self) { mode in Text(mode.label).tag(mode) }
-                }.labelsHidden().pickerStyle(.menu)
+                settingsMenu(
+                    selection: appState.config.resolvedBodhanOutputMode.label,
+                    options: BodhanOutputMode.allCases.map(\.label)
+                ) { label in
+                    guard let mode = BodhanOutputMode.allCases.first(where: { $0.label == label }) else { return }
+                    controller.selectBodhanOutputMode(mode)
+                }
+                .accessibilityLabel("Output script")
             }
         }
     }
@@ -1976,6 +1978,13 @@ struct SettingsView: View {
             quilSettingsSection
 
             settingsSection("Advanced") {
+                settingsRow("Paste shortcut", controlWidth: meetingControlWidth) {
+                    PasteShortcutControl(controller: controller, appState: appState)
+                        .help("Custom applies to keyboard paste in Dictation, Quill, and Computer Use. Browser Paste commands and live streaming are unchanged. Re-record custom shortcuts after changing keyboard layouts.")
+                }
+                settingsDescription("Uses your keyboard layout, or a custom paste shortcut.")
+                    .lineLimit(1)
+                Divider().background(MuesliTheme.surfaceBorder)
                 settingsRow("Pause media during dictation") {
                     settingsSwitch(isOn: appState.config.pauseMediaDuringDictation) { newValue in
                         controller.updateConfig { $0.pauseMediaDuringDictation = newValue }
@@ -4026,6 +4035,7 @@ struct FixedWidthPopUp: NSViewRepresentable {
         button.removeAllItems()
         button.addItems(withTitles: options)
         button.menu?.autoenablesItems = false
+        button.isEnabled = context.environment.isEnabled
         updateEnabledItems(in: button)
         button.selectItem(withTitle: selection)
         button.target = context.coordinator
@@ -4036,6 +4046,7 @@ struct FixedWidthPopUp: NSViewRepresentable {
     }
 
     func updateNSView(_ button: NSPopUpButton, context: Context) {
+        button.isEnabled = context.environment.isEnabled
         let currentTitles = button.itemTitles
         if currentTitles != options {
             button.removeAllItems()
